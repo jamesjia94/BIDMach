@@ -85,9 +85,6 @@ case class Learner(
   }
   
   def firstPass(iter:Iterator[(AnyRef, MatIOtrait)]):Unit = {
-  	if (iter != null) {
-  		datasource.asInstanceOf[IteratorSource].opts.iter = iter;
-  	}
     setup
     init
 
@@ -109,7 +106,7 @@ case class Learner(
   def nextPass(iter:Iterator[(AnyRef, MatIOtrait)]): Unit = {
     if (opts.debugMem && ipass > 0) Mat.debugMem = true;
     var lastp = 0f
-    if (iter != null) {
+    if (iter != null && datasource.isInstanceOf[IteratorSource]) {
       datasource.asInstanceOf[IteratorSource].opts.iter = iter;
     }
     datasource.reset
