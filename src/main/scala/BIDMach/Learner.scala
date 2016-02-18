@@ -78,8 +78,10 @@ case class Learner(
     reslist = new ListBuffer[FMat];
     samplist = new ListBuffer[Float];
     firstPass(null);
+    updateM;
     while (ipass < opts.npasses && ! done) {
       nextPass(null);
+      updateM;
     }
     wrapUp;
   }
@@ -156,8 +158,11 @@ case class Learner(
         lastCheckPoint += 1;
       }
     }
-    if (updater != null) updater.updateM(ipass)
     ipass += 1
+  }
+
+  def updateM: Unit = {
+    if (updater != null) updater.updateM(ipass)
   }
 
   def wrapUp {
