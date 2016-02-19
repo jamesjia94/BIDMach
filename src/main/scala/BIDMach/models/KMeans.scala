@@ -197,6 +197,20 @@ object KMeans  {
   def learner(fnames:String, d:Int):(Learner, FileOptions) = learner(List(FileSource.simpleEnum(fnames,1,0)), d);
   
   def learner(fnames:String):(Learner, FileOptions) = learner(List(FileSource.simpleEnum(fnames,1,0)), 256);
+
+  class IteratorOptions extends Learner.Options with KMeans.Opts with IteratorSource.Opts with Batch.Opts
+
+  def learner():(Learner, IteratorOptions) = {
+    val opts = new IteratorOptions
+    val nn = new Learner(
+      null,
+      new KMeans(opts),
+      null,
+      new Batch(opts),
+      null,
+      opts)
+    (nn, opts)
+  }
   
   class PredOptions extends Learner.Options with KMeans.Opts with MatSource.Opts with MatSink.Opts;
   
