@@ -29,7 +29,7 @@ case class Learner(
     val opts:Learner.Options = new Learner.Options) extends Serializable {
   
   var results:FMat = null
-  val dopts:DataSource.Opts = datasource.opts
+  val dopts:DataSource.Opts = if (datasource != null) datasource.opts else null
   val mopts:Model.Opts	= model.opts
   val ropts:Mixin.Opts = if (mixins != null) mixins(0).opts else null
   val uopts:Updater.Opts = if (updater != null) updater.opts else null
@@ -110,6 +110,7 @@ case class Learner(
     var lastp = 0f
     if (iter != null && datasource.isInstanceOf[IteratorSource]) {
       datasource.asInstanceOf[IteratorSource].opts.iter = iter;
+      datasource.asInstanceOf[IteratorSource].iter = iter;
     }
     datasource.reset
     var istep = 0

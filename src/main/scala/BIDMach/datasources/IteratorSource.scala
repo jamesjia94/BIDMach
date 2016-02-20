@@ -164,7 +164,7 @@ object IteratorSource {
   trait Opts extends DataSource.Opts {
     var nmats = 1;
     var dorows:Boolean = false
-    @transient var iter:Iterator[Tuple2[AnyRef, MatIOtrait]] = null;
+    @transient var iter:Iterator[Tuple2[AnyRef, MatIOtrait]] = null
     var eltsPerSample = 10;
     var throwMissing:Boolean = false; 
   }
