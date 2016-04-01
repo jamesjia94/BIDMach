@@ -38,6 +38,7 @@ case class Learner(
   var samplist:ListBuffer[Float] = null;
   var lastCheckPoint = 0;
   var done = false;
+  var paused = false;
   var ipass = 0;
   var here = 0L;
   var lasti = 0;
@@ -46,7 +47,7 @@ case class Learner(
   var debugMemState = false;
 	
   def setup = {
-	Learner.setupPB(datasource, dopts.putBack, mopts.dim)   
+	  Learner.setupPB(datasource, dopts.putBack, mopts.dim)   
   }
   
   def init = {
@@ -116,6 +117,7 @@ case class Learner(
     var istep = 0
     println("pass=%2d" format ipass)
     while (datasource.hasNext) {
+      while (paused) Thread.sleep(10)
       val mats = datasource.next;
       here += datasource.opts.batchSize
       bytes += mats.map(Learner.numBytes _).reduce(_+_);
@@ -179,6 +181,7 @@ case class Learner(
     datasource.close;
     if (datasink != null) datasink.close;
     results = Learner.scores2FMat(reslist) on row(samplist.toList);
+    done = true;
   }
   
   def predict() = {
