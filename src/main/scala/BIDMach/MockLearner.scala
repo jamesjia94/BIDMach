@@ -37,7 +37,12 @@ class MockLearner(
       bytes += mats.map(Learner.numBytes _).reduce(_+_);
       val dsp = datasource.progress;
       val gprogress = (ipass + dsp)/opts.npasses;
-
+      if ((istep - 1) % opts.evalStep == 0 || (istep > 0 && (! datasource.hasNext))) {
+        val scores = model.evalbatchg(mats, ipass, here);
+        if (datasink != null) datasink.put;
+        reslist.append(scores.newcopy)
+        samplist.append(here)
+      }
       istep += 1
       if (dsp > lastp + opts.pstep && reslist.length > lasti) {
         val gf = gflop
