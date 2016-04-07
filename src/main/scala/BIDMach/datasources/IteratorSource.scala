@@ -152,6 +152,7 @@ class IteratorSource(override val opts:IteratorSource.Opts = new IteratorSource.
   override def close = {
     for (i <- 0 until inMats.length) {
       inMats(i) = null;
+      omats(i) = null;
     }
 //    stop = true
   }
