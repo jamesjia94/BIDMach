@@ -22,7 +22,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 @SerialVersionUID(100L)
 case class Learner(
     val datasource:DataSource,
-    val model:Model, 
+    val model:Model,
     val mixins:Array[Mixin], 
     val updater:Updater, 
     val datasink:DataSink,
@@ -79,10 +79,10 @@ case class Learner(
     reslist = new ListBuffer[FMat];
     samplist = new ListBuffer[Float];
     firstPass(null);
-    updateM;
+    updateM(ipass-1)
     while (ipass < opts.npasses && ! done) {
-      nextPass(null);
-      updateM;
+      nextPass(null)
+      updateM(ipass-1)
     }
     wrapUp;
   }
@@ -164,7 +164,7 @@ case class Learner(
     ipass += 1
   }
 
-  def updateM: Unit = {
+  def updateM(ipass: Int): Unit = {
     if (updater != null) updater.updateM(ipass)
   }
 
