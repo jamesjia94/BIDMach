@@ -305,7 +305,20 @@ class FileSource(override val opts:FileSource.Opts = new FileSource.Options) ext
     for (i <- 0 until opts.lookahead) {
       prefetchTasks(i).cancel(true);
     }
+    for (i <- 0 until fnames.size) {
+      omats(i) = null
+
+    }
     executor.shutdown();
+    executor = null
+    prefetchTasks = null
+    prefetchers = null
+    for (i <- 0 until fnames.size) {
+      omats(i) = null
+    }
+
+    for (i <- 0 until lastMat.length) {lastMat(i) = null}
+
   }
 }
 
