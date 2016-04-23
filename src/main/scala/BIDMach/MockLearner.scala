@@ -30,37 +30,6 @@ class MockLearner(
     datasource.reset
     var istep = 0
     println("pass=%2d" format ipass)
-    while (datasource.hasNext) {
-      while (paused) Thread.sleep(10)
-      val mats = datasource.next;
-      here += datasource.opts.batchSize
-      bytes += mats.map(Learner.numBytes _).reduce(_+_);
-      val dsp = datasource.progress;
-      val gprogress = (ipass + dsp)/opts.npasses;
-      if ((istep - 1) % opts.evalStep == 0 || (istep > 0 && (! datasource.hasNext))) {
-        val scores = model.evalbatchg(mats, ipass, here);
-        if (datasink != null) datasink.put;
-        reslist.append(scores.newcopy)
-        samplist.append(here)
-      }
-      istep += 1
-      if (dsp > lastp + opts.pstep && reslist.length > lasti) {
-        val gf = gflop
-        lastp = dsp - (dsp % opts.pstep)
-        print("%5.2f%%, %s, gf=%5.3f, secs=%3.1f, GB=%4.2f, MB/s=%5.2f" format (
-          100f*lastp,
-          Learner.scoreSummary(reslist, lasti, reslist.length, opts.cumScore),
-          gf._1,
-          gf._2,
-          bytes*1e-9,
-          bytes/gf._2*1e-6))
-        if (useGPU) {
-          print(", GPUmem=%3.6f" format GPUmem._1)
-        }
-        println;
-        lasti = reslist.length;
-      }
-    }
     ipass += 1
   }
 }
