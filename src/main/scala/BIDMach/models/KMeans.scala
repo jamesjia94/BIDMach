@@ -29,6 +29,7 @@ class KMeans(override val opts:KMeans.Opts = new KMeans.Options) extends Cluster
 //  var mm:Mat = null
   var um:Mat = null
   var umcount:Mat = null
+  var modelsreduced:Int = 1
   
   def mm = {modelmats(0)};
   def mmnorm = {modelmats(1)};
@@ -113,23 +114,13 @@ class KMeans(override val opts:KMeans.Opts = new KMeans.Options) extends Cluster
   override def combineModels(ipass:Int, model: Model):Model = {
     val other:KMeans = model.asInstanceOf[KMeans];
     if (ipass == 0) {
-      val umx = um.asInstanceOf[FMat]
-      val o_umx = other.um.asInstanceOf[FMat]
-      var curr_models_reduced = umx(0,0)
-      var other_models_reduced = o_umx(0,0)
-      if (curr_models_reduced == 0) {
-        curr_models_reduced += 1
-      }
-      if (other_models_reduced == 0) {
-        other_models_reduced += 1
-      }
-      val total_models_reduced = curr_models_reduced + other_models_reduced
+      val total_models_reduced = modelsreduced + other.modelsreduced
       val isel = mm.zeros(mm.nrows, 1)
       val vsel = min((total_models_reduced-1).toFloat, floor(total_models_reduced*rand(mm.nrows, 1)))
-      isel <-- (vsel < curr_models_reduced.toFloat)
+      isel <-- (vsel < modelsreduced.toFloat)
       mm ~ isel *@ mm
       mm ~ mm + (1-isel) *@ other.mm
-      um(0,0) = curr_models_reduced + other_models_reduced
+      modelsreduced = total_models_reduced
     } else {
       um ~ um + other.um;
       umcount ~ umcount + other.umcount;
