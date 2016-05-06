@@ -329,6 +329,7 @@ class FileSource(override val opts:FileSource.Opts = new FileSource.Options) ext
       omats(i) = null
 
     }
+    if (executor != null) executor.shutdown();
     executor.shutdown();
     executor = null
     prefetchTasks = null

@@ -1,6 +1,6 @@
 package BIDMach.updaters
  
-import BIDMat.{Mat,SBMat,CMat,DMat,FMat,IMat,HMat,GMat,GIMat,GSMat,SMat,SDMat}
+import BIDMat.{Mat,SBMat,CMat,DMat,FMat,IMat,HMat,GMat,GIMat,GSMat,SMat,SDMat,TMat}
 import BIDMat.MatFunctions._
 import BIDMat.SciFunctions._
 import BIDMach.models._
@@ -273,13 +273,6 @@ object ADAGrad {
         val masknr = if (fmask.asInstanceOf[AnyRef] != null) fmask.nrows else 0;
         CPUMACH.multADAGrad(nr, nc, b.nnz, fa.data, sb.data, sb.ir, sb.jc, fmm.data, fssq.data, if (fmask != null) fmask.data else null, masknr, 
             flrate.data, flrate.nrows, fvexp.data, fvexp.nrows, ftexp.data, ftexp.nrows, istep, addgrad, eps, biasv, nbr);
-
-/*        if (1L*nr*b.nnz > 100000L && Mat.numThreads > 1) {
-    			(0 until Mat.numThreads).par.map((ithread:Int) => 
-    			  multUpdateHelperT(fa, sb, fmm, fssq, fmask, flrate, ftexp, fvexp, istep, addgrad, eps, ithread, Mat.numThreads));
-    		} else {
-    			multUpdateHelperT(fa, sb, fmm, fssq, fmask, flrate, ftexp, fvexp, istep, addgrad, eps, 0, 1);
-    		} */
       }
       case (ga:GMat, gsb:GSMat, gmm:GMat, gssq:GMat, glrate:GMat, gtexp:GMat, gvexp:GMat) => {
       	Mat.nflops += 20L * nr * b.nnz;
@@ -289,24 +282,61 @@ object ADAGrad {
         CUMACH.multADAGrad(nr, nc, b.nnz, ga.data, gsb.data, gsb.ir, gsb.ic, gmm.data, gssq.data, gmaskdata, masknr,
             glrate.data, lrate.nrows, gvexp.data, vexp.nrows, gtexp.data, texp.nrows, istep, addgrad, eps, biasv, nbr)
       }
+      case (fa:FMat, sb:SMat, fmm:TMat, fssq:TMat, flrate:FMat, ftexp:FMat, fvexp:FMat) => {
+      	Mat.nflops += 20L * nr * b.nnz;
+        val fmask = mask.asInstanceOf[FMat];
+        val masknr = if (fmask.asInstanceOf[AnyRef] != null) fmask.nrows else 0;
+        for (i <- 0 until fmm.tiles.length) {
+        	val mmtile = fmm.tiles(i).asInstanceOf[FMat];
+        	val ssqtile = fssq.tiles(i).asInstanceOf[FMat];
+        	val nr = mmtile.nrows;
+        	val nc = mmtile.ncols;
+        	val y = fmm.y(i);
+        	val x = fmm.x(i);
+        	CPUMACH.multADAGradTile(nr, nc, y, x, b.nnz, fa.data, fa.nrows, sb.data, sb.ir, sb.jc, mmtile.data, ssqtile.data, if (fmask != null) fmask.data else null, masknr, 
+        			flrate.data, flrate.nrows, fvexp.data, fvexp.nrows, ftexp.data, ftexp.nrows, istep, addgrad, eps, biasv, nbr);
+        }
+      }
+      case (ga:GMat, gsb:GSMat, gmm:TMat, gssq:TMat, glrate:GMat, gtexp:GMat, gvexp:GMat) => {
+      	Mat.nflops += 20L * nr * b.nnz;
+//	println("istep=%f" format istep);
+        val gmask0 = mask.asInstanceOf[GMat];
+        val gmaskdata = if (gmask0.asInstanceOf[AnyRef] != null) gmask0.data else new jcuda.Pointer();
+        val masknr = if (gmask0.asInstanceOf[AnyRef] != null) gmask0.nrows else 0;
+        for (i <- 0 until gmm.tiles.length) {
+          val mmtile = gmm.tiles(i).asInstanceOf[GMat];
+          val ssqtile = gssq.tiles(i).asInstanceOf[GMat];
+          val nr = mmtile.nrows;
+          val nc = mmtile.ncols;
+          val y = gmm.y(i);
+          val x = gmm.x(i);
+          CUMACH.multADAGradTile(nr, nc, y, x, gsb.nnz, ga.data, ga.nrows, gsb.data, gsb.ir, gsb.ic, mmtile.data, ssqtile.data, gmaskdata, masknr,
+          		glrate.data, lrate.nrows, gvexp.data, vexp.nrows, gtexp.data, texp.nrows, istep, addgrad, eps, biasv, nbr)
+        }
+      } 
       case _ => {
-        val grad0 = a *^ b;
+        val grad0 = mm match {
+          case tmm:TMat => mm + 0f;
+          case _ => mm.view(mm.nrows, mm.ncols - (if (hasBias) 1 else 0)) + 0;
+        }
+        grad0.clear;
+        a.madd(b, grad0, false, true);
         val grad = if (hasBias) grad0 \ sum(a,2) else grad0;
-        sumSq ~ sumSq + (grad ∘ grad);
-        sumSq ~ sumSq + eps;
-        val ssq = sumSq + 0f;
-        ssq ~ ssq * istep;
-        ssq ~ ssq ^ vexp;
+        val ssq = grad ∘ grad;
+        ssq ~ ssq ∘ istep;
+        sumSq ~ sumSq ∘ (1f - istep);
+        sumSq ~ sumSq + ssq;
+        ssq ~ sumSq ^ vexp;
+        grad ~ grad / ssq;
         val te = texp + 0f;
         te.set(istep);
         te ~ te ^ texp;
-        grad ~ grad ∘ lrate;
-        grad ~ grad ∘ te;
-        grad ~ grad / ssq;
+        grad ~ grad ∘ (lrate ∘ te);
         mm ~ mm + grad;
       }
     }    
   }
+
   
   
   /**

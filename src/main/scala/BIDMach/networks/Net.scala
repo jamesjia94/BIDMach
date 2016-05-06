@@ -34,7 +34,7 @@ class Net(override val opts:Net.Opts = new Net.Options) extends Model(opts) {
   var initialize = false;
 
   override def init() = {
-	  mats = datasource.next;
+//	  mats = datasource.next;
 	  var nfeats = mats(0).nrows;
 	  batchSize = mats(0).ncols
 	  targmap = if (opts.targmap.asInstanceOf[AnyRef] != null) convertMat(opts.targmap) else null;
@@ -64,7 +64,7 @@ class Net(override val opts:Net.Opts = new Net.Options) extends Model(opts) {
     evalbatch(gmats, 0, 0);
     initialize = false;
     putBack = pb;
-	  datasource.reset;
+//	  datasource.reset;
   }
   
   def createLayers = {
@@ -296,15 +296,60 @@ object Net  {
     		}
     	}
     	case 2 => {
-    		nodes(i) = new NormNode{inputs(0) = nodes(i-1); targetNorm = opts.targetNorm; weight = opts.nweight};
+    		nodes(i) = new DropoutNode{inputs(0) = nodes(i-1); frac = opts.dropout};
     	}
     	case 3 => {
-    		nodes(i) = new DropoutNode{inputs(0) = nodes(i-1); frac = opts.dropout};
+    		nodes(i) = new NormNode{inputs(0) = nodes(i-1); targetNorm = opts.targetNorm; weight = opts.nweight};
     	}
     	}
     }
     nodes(depth-1) = new GLMNode{inputs(0) = nodes(depth-2); links = opts.links};
     nodes;
+  }
+  
+  def powerShape(tailHeight:Float, power:Float)(headCount:Int, nfeats:Int):(Array[Int], Array[Int], Array[Int], Array[Int]) = {
+    powerShape(tailHeight, power, true)(headCount, nfeats);
+  }
+  
+  def powerShape(tailHeight:Float)(headCount:Int, nfeats:Int):(Array[Int], Array[Int], Array[Int], Array[Int]) = {
+    powerShape(tailHeight, 1f, true)(headCount, nfeats);
+  }
+  
+  def powerShape(tailHeight:Float, power:Float, leftAlign:Boolean)(headCount:Int, nfeats:Int):(Array[Int], Array[Int], Array[Int], Array[Int]) = {
+    var nblocks = 1;
+    var tc = tailHeight;
+    var ymin = 0;
+    while (tc < headCount) {
+      val ymax = math.min(headCount, math.round(tc - 1e-5f));
+      if (ymax - ymin > 0) nblocks += 1;
+      ymin = ymax;
+      tc *= 2;
+    }
+    val y = new Array[Int](nblocks);
+    val x = new Array[Int](nblocks);
+    val h = new Array[Int](nblocks);
+    val w = new Array[Int](nblocks);
+    val ratio = math.pow(0.5, power);
+    var xmax = nfeats;
+    ymin = 0;
+    tc = tailHeight;
+    var i = 0;
+    while (i < nblocks) {
+    	val newx = (xmax * ratio).toInt;
+      val xmin = if (leftAlign) 0 else newx; 
+      val ymax = math.min(headCount, math.round(tc - 1e-5f));
+      if (ymax - ymin > 0) {
+      	x(i) = xmin;
+      	y(i) = ymin;
+      	w(i) = xmax - xmin;
+      	h(i) = ymax - ymin;
+      	i += 1;
+      }
+      xmax = newx;
+      ymin = ymax;
+      tc *= 2;
+    }
+    (y, x, h, w)
   }
   
   def mkNetModel(fopts:Model.Opts) = {
@@ -387,8 +432,7 @@ object Net  {
     opts.fnames = fnames
     opts.batchSize = 100000;
     opts.eltsPerSample = 500;
-    implicit val threads = threadPool(4);
-    val ds = new FileSource(opts)
+    val ds = new FileSource(opts);
     // val net = dnodes(3, 0, 1f, opts.targmap.nrows, opts)                   // default to a 3-node network
   	val nn = new Learner(ds, 
   	                     new Net(opts), 
@@ -400,7 +444,7 @@ object Net  {
   }
 
   
-  class PredOptions extends Learner.Options with Net.Opts with MatSource.Opts with MatSink.Opts
+  class PredOptions extends Learner.Options with Net.Opts with MatSource.Opts with MatSink.Opts;
   
   def predictor(model0:Model, mat0:Mat):(Learner, PredOptions) = {
     val model = model0.asInstanceOf[Net];
@@ -422,6 +466,39 @@ object Net  {
         null,
         null, 
         new MatSink(opts),
+        opts);
+    (nn, opts)
+  }
+  
+  class FilePredOptions extends Learner.Options with Net.Opts with FileSource.Opts with FileSink.Opts;
+  
+  def predictor(model0:Model, infn:String, outfn:String):(Learner, FilePredOptions) = {
+    predictor(model0, List(FileSource.simpleEnum(infn,1,0)), List(FileSource.simpleEnum(outfn,1,0)));
+  }
+  
+  def predictor(model0:Model, infiles:List[(Int)=>String], outfiles:List[(Int)=>String]):(Learner, FilePredOptions) = {
+    val model = model0.asInstanceOf[Net];
+    val mopts = model.opts;
+    val opts = new FilePredOptions;
+    opts.fnames = infiles;
+    opts.ofnames = outfiles;
+    opts.links = mopts.links;
+    opts.nodeset = mopts.nodeset.clone;
+    opts.nodeset.nodes.foreach({case nx:LinNode => nx.aopts = null; case _ => Unit})
+    opts.hasBias = mopts.hasBias;
+    opts.dropout = 1f;
+    
+    val newmod = new Net(opts);
+    newmod.refresh = false;
+    newmod.copyFrom(model);
+    val dsource = new FileSource(opts);
+    val dsink = new FileSink(opts);
+    val nn = new Learner(
+        dsource, 
+        newmod, 
+        null,
+        null, 
+        dsink,
         opts);
     (nn, opts)
   }

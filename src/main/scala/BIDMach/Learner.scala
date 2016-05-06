@@ -1,5 +1,5 @@
 package BIDMach
-import BIDMat.{Mat,SBMat,CMat,DMat,FMat,IMat,HMat,GDMat,GLMat,GMat,GIMat,GSDMat,GSMat,LMat,SMat,SDMat}
+import BIDMat.{Mat,SBMat,CMat,DMat,FMat,IMat,HMat,GDMat,GLMat,GMat,GIMat,GSDMat,GSMat,LMat,SMat,SDMat,TMat}
 import BIDMat.MatFunctions._
 import BIDMat.SciFunctions._
 import BIDMat.Plotting._
@@ -60,6 +60,7 @@ case class Learner(
       model.bind(datasink);
     }
     model.init;
+    if (model.opts.logDataSink.asInstanceOf[AnyRef] != null)  model.opts.logDataSink.init
     if (mixins != null) mixins map (_ init(model))
     if (updater != null) updater.init(model)
     Mat.useCache = cacheState;
@@ -178,8 +179,10 @@ case class Learner(
       resetGPUs
       Mat.clearCaches
     }
+    
     datasource.close;
     if (datasink != null) datasink.close;
+    if (model.opts.logDataSink.asInstanceOf[AnyRef] != null) model.opts.logDataSink.close
     results = Learner.scores2FMat(reslist) on row(samplist.toList);
     done = true;
   }
@@ -826,11 +829,12 @@ object Learner {
     for (i <- 0 until mats.length) {
       mats(i) match {
         case g:GMat => mats(i) = FMat(g)
-        case g:GSMat => mats(i) = SMat(g)
         case g:GIMat => mats(i) = IMat(g)
         case g:GDMat => mats(i) = DMat(g)
         case g:GLMat => mats(i) = LMat(g)
+        case g:GSMat => mats(i) = SMat(g)
         case g:GSDMat => mats(i) = SDMat(g)
+        case g:TMat => mats(i) = cpu(mats(i))
         case _ => {}
       }
     }
